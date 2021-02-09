@@ -10,8 +10,8 @@
     "url": "git+https://github.com/josefK128/dome-vr-dev.git"
   },
   "scripts": {
-    "live-server": "live-server",
-    "live-server-public": "cd c:/public && live-server",
+    "live": "live-server -p 8081",
+    "http": "http-serverm -p 8081",
     "scss": "node-sass --output-style compressed -o src/styles/css src/styles/scss",
     "test": "jasmine ./spec/*.spec",
     "tsc": "tsc --outDir ./src/app-es6|sed '/TS2304/d;/TS2503/d'",
@@ -19,8 +19,7 @@
     "tsc-log-name-errors": "tsc --outDir ./src/app-es6 > ./logs/tsc-name-errors.log",
     "build": "tsc --out ./dist/app.js|sed '/TS2304/d;/TS2503/d'",
     "build-log": "tsc --out ./dist/app.js|sed '/TS2304/d;/TS2503/d' > ./logs/build.log",
-    "build-log-name-errors": "tsc --out ./dist/app.js > ./logs/build-name-errors.log",
-    "tslint-faulty": "tslint --project ./tslint.json src/app/**/*.ts"
+    "build-log-name-errors": "tsc --out ./dist/app.js > ./logs/build-name-errors.log"
   },
   "dependencies": {
     "async": "^2.6.1",
@@ -29,7 +28,7 @@
     "socket.io": "^1.7.4",
     "socket.io-client": "^1.7.4",
     "systemjs": "^0.19.47",
-    "three": "^0.99.0",
+    "three": "^0.125.2",
     "tween.js": "^16.6.0"
   },
   "devDependencies": {

@@ -153,12 +153,6 @@ var narrative:Narrative,
     vr_fog:THREE.Fog,
 
 
-    // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-    // overrideMaterial to solve rd-wr texture conflict
-    overrideMaterial = new THREE.MeshBasicMaterial(),
-    // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-
-
     // TEMP !!!!
     frame:number = 0,
     //test_texture:THREE.Texture = (new THREE.TextureLoader()).load('./assets/images/glad.png'),
@@ -182,7 +176,7 @@ var narrative:Narrative,
 
       //hud.scale.set(aspect, 1.0, 1.0);     // one-half width, height
       hud.scale.set(2.0*aspect, 2.0, 1.0);  // full-screen
-      //console.log(`canvas w=${canvas.width} h=${canvas.height}`);
+      //mediator.log(`canvas w=${canvas.width} h=${canvas.height}`);
     },   
     
 
@@ -378,11 +372,7 @@ var narrative:Narrative,
 
 
         // @@@@render scene to target
-        //renderer.render(scene, lens, sgTarget);
-        let sgTarget_ = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {minFilter:THREE.LinearFilter, maxFilter:THREE.NearestFilter});
-        sgTarget_ = sgTarget.clone();
-        renderer.setRenderTarget(sgTarget_);
-        renderer.render(scene, lens);
+        renderer.render(scene, lens, sgTarget);
         quad.material.uniforms.tDiffuse.value = sgTarget.texture;
         quad.material.uniforms.tDiffuse.needsUpdate = true;
 
@@ -392,11 +382,7 @@ var narrative:Narrative,
         if(_webvr || hud['_post']){
 
           // render rm_scene to rmTarget
-          //renderer.render(rm_scene, lens, rmTarget);
-          let rmTarget_ = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {minFilter:THREE.LinearFilter, maxFilter:THREE.NearestFilter});
-          rmTarget_ = rmTarget.clone();
-          renderer.setRenderTarget(rmTarget_);
-          renderer.render(rm_scene, lens);
+          renderer.render(rm_scene, lens, rmTarget);
 
           // post-processing - rmTarget.texture to hud ShaderMaterial
           if(hud['_post']){
@@ -409,16 +395,13 @@ var narrative:Narrative,
           // turn on vr for third 'webvr' render of vr_scene to webvr display 
           if(_webvr){
             if(frame%1000===0){console.log(`_webvr:t _webvr_skycube=${_webvr_skycube} _sg3D=${_sg3D}`)};
-            //renderer.vr.enabled = true;
-            renderer.xr.enabled = true;
-            renderer.xr.setReferenceSpaceType('local');
-
+            renderer.vr.enabled = true;
 
             // update ViveControllers
-//            if(_vive){
-//              vive_controller1.update();
-//              vive_controller2.update();
-//            }
+            if(_vive){
+              vive_controller1.update();
+              vive_controller2.update();
+            }
 
             // FAILS! - rm_scene.add(vr_cubeCamera) also commented out
 //            if(_webvr_skybox && _webvr_skybox_dynamic){  
@@ -446,20 +429,7 @@ var narrative:Narrative,
               if(_sg3D){
                 vr_cube.material.map = sgTarget.texture;
               }else{
-                // original!!
                 vr_cube.material.map = rmTarget.texture;
-
-
-                // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-                //let rmTarget_ = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {minFilter:THREE.LinearFilter, maxFilter:THREE.NearestFilter});
-                //let rmTarget_texture = rmTarget.texture.clone();
-                //rmTarget_ = rmTarget;
-                //vr_cube.material.map = rmTarget_texture;
-
-                //overrideMaterial.map = rmTarget.texture.clone();
-                //overrideMaterial.map = rmTarget.texture;
-                //vr_cube.material = overrideMaterial;
-                // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
               }
               //vr_cube.material.map = rmTarget.texture;
               vr_cube.material.needsUpdate = true;
@@ -544,9 +514,9 @@ var narrative:Narrative,
 
     animate = () => {
       //turn off vr for first two webGL render-passes
-//      if(_webvr){
-//        renderer.vr.enabled = false;
-//      }
+      if(_webvr){
+        renderer.vr.enabled = false;
+      }
 
       // Leap Motion csphere-controls
       if(controls){
@@ -575,7 +545,7 @@ var narrative:Narrative,
           try{
             narrative.exec(queue.pop());
           }catch(e){
-            console.log(e);
+            mediator.loge(e);
             console.trace();
           }
         }
@@ -615,7 +585,7 @@ class Narrative {
     _vive = config.vive;
     _sg3D = config.sg3D;
     console.log(`\n*** n.bootstrap: _webvr is ${_webvr} _sg3D=${_sg3D}!!!!!`);
-    console.log(`*** _webvr is ${_webvr} !!!!!!!!`);
+    console.log(`*** WEBVR is ${WEBVR} !!!!!!!!`);
     console.log(`*** injection:`);
     console.dir(injection);
     state = injection['state'];
@@ -633,7 +603,7 @@ class Narrative {
           narrative.initialize();
       })
       .catch((e) => {
-        console.log(`narrative: import of testTarget caused error: ${e}`);
+        mediator.loge(`narrative: import of testTarget caused error: ${e}`);
         console.trace();
       });
     }else{
@@ -644,8 +614,8 @@ class Narrative {
 
 
   initialize(){
-    console.log(`*** narrative.initialize()`);
-    console.log(`scene is ${config['_state']}`);
+    mediator.logc(`*** narrative.initialize()`);
+    mediator.log(`scene is ${config['_state']}`);
 
     // stats - create and append stats to body but initially hide
     document.body.appendChild(stats.dom);
@@ -657,9 +627,7 @@ class Narrative {
     antialias = config['antialias'] || antialias;
 
     // scene - written to sgTarget, rm_scene - written to output
-    // sgTarget is the result of:
-    // renderer.setRenderTarget(sgTarget);
-    // renderer.render(scene, camera)
+    // sgTarget is the result renderer.render(scene, camera, sgTarget)
     // which renders the three.js scenegraph to a WebGLRenderTarget sent
     // to the space fragmentshader as sgTarget.texture uniform 'tDiffuse'
     scene = new THREE.Scene();
@@ -740,25 +708,25 @@ class Narrative {
 
     // webvr
     // disable vr for sgTarget and rmTarget passes - set true in render
-    //    renderer.vr.enabled = false; 
+    renderer.vr.enabled = false; 
     if(_webvr){
 
       // initialize WebVR and create 'enter VR' button
-      document.body.appendChild(VRButton.createButton(renderer));
+      document.body.appendChild(WEBVR.createButton(renderer, {}));
       console.log(`\n!!!!! _webvr is true - VR display set and button added!`);
 
       // create vr_scene
       vr_scene = new THREE.Scene();
             
       // vive controllers - RECALL - two! Add to vr_scene
-//      if(_vive){
-//        vive_controller1 = new THREE.ViveController(0);
-//        vive_controller1.standingMatrix = renderer.vr.getStandingMatrix();
-//        vr_scene.add(vive_controller1);
-//        vive_controller2 = new THREE.ViveController(1);
-//        vive_controller2.standingMatrix = renderer.vr.getStandingMatrix();
-//        vr_scene.add(vive_controller1);
-//      }
+      if(_vive){
+        vive_controller1 = new THREE.ViveController(0);
+        vive_controller1.standingMatrix = renderer.vr.getStandingMatrix();
+        vr_scene.add(vive_controller1);
+        vive_controller2 = new THREE.ViveController(1);
+        vive_controller2.standingMatrix = renderer.vr.getStandingMatrix();
+        vr_scene.add(vive_controller1);
+      }
 
       // create vrspace
       _webvr_skybox = config.webvr_skybox || false;
@@ -858,10 +826,10 @@ class Narrative {
       lens.translateZ(csph_r);
       // put hud at world origin - RECALL:hud is child of lens at (0,0,csph_r)
       hud.translateZ(-1.0 * csph_r);
-      console.log(`csph_r = ${csph_r}`);
-      console.log(`lens world pos = ${lens.getWorldPosition(vcopy).toArray()}`);
-      console.log(`hud world pos = ${hud.getWorldPosition(vcopy).toArray()}`);
-      console.log(`*** narrative initialized scenegraph phase`);
+      mediator.log(`csph_r = ${csph_r}`);
+      mediator.logc(`lens world pos = ${lens.getWorldPosition(vcopy).toArray()}`);
+      mediator.logc(`hud world pos = ${hud.getWorldPosition(vcopy).toArray()}`);
+      mediator.logc(`*** narrative initialized scenegraph phase`);
   
   
       // set n.quad a.hud - initialize animation and camera3d - 'c3d'
@@ -885,7 +853,7 @@ class Narrative {
       narrative['targets']['camera3d'] = c3d;
       narrative['targets']['controls'] = controls;
       narrative['targets']['animation'] = animation;
-      console.log(`narrative.targets = ${Object.keys(this.targets)}`);
+      mediator.log(`narrative.targets = ${Object.keys(this.targets)}`);
   
   
       // resize - why 3rd arg non-default 'true' in 2nd listener ???
@@ -906,7 +874,7 @@ class Narrative {
 
 
   foo(s:string){
-    console.log(`~~~foo: ${s}`);
+    mediator.logc(`~~~foo: ${s}`);
   }
 
 
@@ -915,7 +883,7 @@ class Narrative {
   // in the path argument.
   // Also, the path appears in address bar and is available from state service
   changeState(state) {
-    console.log(`*** narrative.changeState()`); 
+    mediator.logc(`*** narrative.changeState()`); 
 
     // component changes
     async.parallel({
@@ -931,7 +899,7 @@ class Narrative {
           }
         }
         catch(e) {
-          console.log(`changeState: camera.delta caused error: ${e}`);
+          mediator.loge(`changeState: camera.delta caused error: ${e}`);
           console.trace();
           callback(e, null);
         }
@@ -948,7 +916,7 @@ class Narrative {
           }
         }
         catch(e) {
-          console.log(`changeState: stage.delta caused error: ${e}`);
+          mediator.loge(`changeState: stage.delta caused error: ${e}`);
           console.trace();
           callback(e, null);
         }
@@ -965,7 +933,7 @@ class Narrative {
           }
         }
         catch(e) {
-          console.log(`changeState: cloud.delta caused error: ${e}`);
+          mediator.loge(`changeState: cloud.delta caused error: ${e}`);
           console.trace();
           callback(e, null);
         }
@@ -982,7 +950,7 @@ class Narrative {
           }
         }
         catch(e) {
-          console.log(`changeState: space.delta caused error: ${e}`);
+          mediator.loge(`changeState: space.delta caused error: ${e}`);
           console.trace();
           callback(e, null);
         }
@@ -999,7 +967,7 @@ class Narrative {
           }
         }
         catch(e) {
-          console.log(`changeState: audio.delta caused error: ${e}`);
+          mediator.loge(`changeState: audio.delta caused error: ${e}`);
           console.trace();
           callback(e, null);
         }
@@ -1018,7 +986,7 @@ class Narrative {
             }
           }
           catch(e) {
-            console.log(`changeState: vrstage.delta caused error: ${e}`);
+            mediator.loge(`changeState: vrstage.delta caused error: ${e}`);
             console.trace();
             callback(e, null);
           }
@@ -1039,7 +1007,7 @@ class Narrative {
           }
         }
         catch(e) {
-          console.log(`changeState: vrcloud.delta caused error: ${e}`);
+          mediator.loge(`changeState: vrcloud.delta caused error: ${e}`);
           console.trace();
           callback(e, null);
         }
@@ -1058,7 +1026,7 @@ class Narrative {
           }
         }
         catch(e) {
-          console.log(`changeState: action.delta caused error: ${e}`);
+          mediator.loge(`changeState: action.delta caused error: ${e}`);
           console.trace();
           callback(e, null);
         }
@@ -1066,7 +1034,7 @@ class Narrative {
       },//first arg
       function(err, o) {
         if(err){
-          console.log("error: " + err);
+          mediator.loge("error: " + err);
           console.trace();
           return;
         }
@@ -1092,7 +1060,7 @@ class Narrative {
         }
         
         // returned by Stage.delta
-        //console.log(`o['stage'] = ${o['stage']}`);
+        //mediator.log(`o['stage'] = ${o['stage']}`);
         if(o['stage']){
           // frame
           if(o['stage']['frame']){
@@ -1113,7 +1081,7 @@ class Narrative {
 
           //skycube
           cube = o['stage']['skycube'];
-          console.log(`cube = ${cube}`);
+          mediator.log(`cube = ${cube}`);
           if(cube !== undefined){                // undefined => modify
             if(cube){                            // object => create
               narrative.addActor('skycube', cube);
@@ -1123,7 +1091,7 @@ class Narrative {
           }
           // skydome
           dome = o['stage']['skydome'];
-          console.log(`dome = ${dome}`);
+          mediator.log(`dome = ${dome}`);
           if(dome !== undefined){                // undefined => modify
             if(dome){                            // object => create
               narrative.addActor('skydome', dome);
@@ -1133,7 +1101,7 @@ class Narrative {
           }
           // ambient_light
           ambient_light = o['stage']['ambient_light'];
-          console.log(`ambient_light = ${ambient_light}`);
+          mediator.log(`ambient_light = ${ambient_light}`);
           if(ambient_light !== undefined){
             if(ambient_light){
               narrative.addActor('ambient_light', ambient_light);
@@ -1143,7 +1111,7 @@ class Narrative {
           }
           // axes
           axes = o['stage']['axes'];
-          console.log(`axes = ${axes}`);
+          mediator.log(`axes = ${axes}`);
           if(axes !== undefined){
             if(axes){
               narrative.addActor('axes', axes);
@@ -1153,7 +1121,7 @@ class Narrative {
           }
           // fog
           fog = o['stage']['fog'];
-          console.log(`fog = ${fog}`);
+          mediator.log(`fog = ${fog}`);
           if(fog !== undefined){
             if(fog){
               scene.fog = fog;
@@ -1166,13 +1134,13 @@ class Narrative {
 
 
         // returned by cloud
-        //console.log(`o['cloud'] = ${o['cloud']}`);
+        //mediator.log(`o['cloud'] = ${o['cloud']}`);
         if(o['cloud']){
           _cloud = o['cloud']['_cloud'] || _cloud;
-          console.log(`_cloud = ${_cloud}`);
+          mediator.log(`_cloud = ${_cloud}`);
           if(o['cloud']['group']){
             spritegroup = o['cloud']['group'];
-            console.log(`cloud spritegroup = ${spritegroup}`); 
+            mediator.log(`cloud spritegroup = ${spritegroup}`); 
             if(spritegroup){
               if(!cloud_pivot){
                 cloud_pivot = new THREE.Object3D();
@@ -1189,7 +1157,7 @@ class Narrative {
 
     
         // returned by Space.delta - don't add to scene!
-        //console.log(`o['space'] = ${o['space']}`);
+        //mediator.log(`o['space'] = ${o['space']}`);
         if(o['space']){
           // set render flag if needed
           if(state['space']['_space'] !== undefined){  // t or f
@@ -1197,8 +1165,8 @@ class Narrative {
             //console.log(`((((((((((((((((( _space set to ${_space}`);
           }
           if(o['space']['rm_shMat']){
-            console.log(`space returns shMat with fsh = ${o['space']['rm_shMat'].fragmentShader}`);
-            console.log(`quad.material = ${quad.material}`);
+            mediator.log(`space returns shMat with fsh = ${o['space']['rm_shMat'].fragmentShader}`);
+            mediator.log(`quad.material = ${quad.material}`);
             quad.material = o['space']['rm_shMat'];
             quad.material.needsUpdate = true;   // needed?
           }else{
@@ -1208,7 +1176,7 @@ class Narrative {
 
 
         // returned by VrStage.delta
-        //console.log(`o['vrstage'] = ${o['vrstage']}`);
+        //mediator.log(`o['vrstage'] = ${o['vrstage']}`);
         if(o['vrstage']){
           if(_webvr){
   
@@ -1219,7 +1187,7 @@ class Narrative {
   
             // ambient_light
             vr_ambient_light = o['vrstage']['ambient_light'];
-            console.log(`vrstage: vr_ambient_light = ${vr_ambient_light}`);
+            mediator.log(`vrstage: vr_ambient_light = ${vr_ambient_light}`);
             if(vr_ambient_light !== undefined){
               if(vr_ambient_light){
                 narrative.addvrActor('vr_ambient_light', vr_ambient_light, true);
@@ -1229,7 +1197,7 @@ class Narrative {
             }
             // axes
             vr_axes = o['vrstage']['axes'];
-            console.log(`vrstage: vr_axes = ${vr_axes}`);
+            mediator.log(`vrstage: vr_axes = ${vr_axes}`);
             if(vr_axes !== undefined){
               if(vr_axes){
                 narrative.addvrActor('vr_axes', vr_axes, true);
@@ -1239,7 +1207,7 @@ class Narrative {
             }
             // fog
             vr_fog = o['vrstage']['fog'];
-            console.log(`vrstage: vr_fog = ${vr_fog}`);
+            mediator.log(`vrstage: vr_fog = ${vr_fog}`);
             if(vr_fog !== undefined){
               if(vr_fog){
                 vr_scene.fog = vr_fog;
@@ -1253,16 +1221,16 @@ class Narrative {
 
 
         // returned by vrcloud
-        //console.log(`o['vrcloud'] = ${o['vrcloud']}`);
+        //mediator.log(`o['vrcloud'] = ${o['vrcloud']}`);
         if(o['vrcloud']){
           if(_webvr){
             _vrcloud = o['vrcloud']['_vrcloud'] || _vrcloud;
-            console.log(`_vrcloud = ${_vrcloud}`);
+            mediator.log(`_vrcloud = ${_vrcloud}`);
             if(o['vrcloud']['group']){
               vr_spritegroup = o['vrcloud']['group'];
               console.log(`%%%%%%%%%%%%%%%%% vrcloud vr_spritegroup = ${vr_spritegroup}`); 
               console.dir(vr_spritegroup); 
-              console.log(`vrcloud vr_spritegroup = ${vr_spritegroup}`); 
+              mediator.log(`vrcloud vr_spritegroup = ${vr_spritegroup}`); 
               if(vr_spritegroup){
                 if(!vrcloud_pivot){
                   vrcloud_pivot = new THREE.Object3D();
@@ -1280,21 +1248,21 @@ class Narrative {
 
 
         // returned Action.delta
-        //console.log(`o['action'] = ${o['action']}`);
+        //mediator.logc(`o['action'] = ${o['action']}`);
         if(o['action']){
           let _a = o['action'];
           if(Object.keys(_a).length > 0){
             _action = _a['_action'];
             actions = _a['actions'] || [];
-            console.log(`_a['_deltaTime'] = ${_a['_deltaTime']}`);
+            mediator.log(`_a['_deltaTime'] = ${_a['_deltaTime']}`);
             if((_a['_deltaTime'] !== undefined) && _a['_deltaTime'] === false){
               _deltaTime = false;
             }else{
               _deltaTime = _a['_deltaTime'] || _deltaTime;
             }
-            console.log(`_action= ${_action}`);
-            console.log(`actions.length = ${actions.length}`); 
-            console.log(`_deltaTime= ${_deltaTime}`);
+            mediator.log(`_action= ${_action}`);
+            mediator.log(`actions.length = ${actions.length}`); 
+            mediator.logc(`_deltaTime= ${_deltaTime}`);
             if(actions.length > 0){
               if(_action === undefined){
                 console.log(`_action undef => append actions = ${actions}`);
@@ -1309,7 +1277,7 @@ class Narrative {
                 }
               }
             }
-            console.log(`queue.fifo.length = ${queue.fifo.length}`);
+            mediator.log(`queue.fifo.length = ${queue.fifo.length}`);
           }
         }
 
@@ -1317,23 +1285,13 @@ class Narrative {
         if(animating){return;}
         animating = true;
 
-
-        // NOTE:this TAIL executed ONLY IF !animating
-
-
         // gsap
-        //TweenMax.ticker.addEventListener('tick', animate);
-        //console.log(`** starting TweenMax`);
+        TweenMax.ticker.addEventListener('tick', animate);
+        console.log(`** starting TweenMax`);
     
         clock.start();
         console.log(`** starting clock`);
         // start render-cycle
-
-        //
-        console.log(`** starting setAnimateFrame `);
-        renderer.setAnimationLoop(animate);
-        console.log(`** starting animate @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@`);
-        animate();
 
       }//2nd arg
     );
@@ -1345,28 +1303,28 @@ class Narrative {
   addActor(name, o, addToScene=true){
     narrative.removeActor(name);
     if(o){
-      console.log(`addActor: before add sc.ch.l = ${scene.children.length}`);
+      mediator.log(`addActor: before add sc.ch.l = ${scene.children.length}`);
       o['name'] = name;
       if(addToScene){
         console.log(`!!!!!!!!!!!!!!!****************** added actor ${name}`);
         scene.add(o);
       }
       narrative.actors[name] = o;
-      console.log(`addActor: added o.name = ${o.name}`);
-      console.log(`addActor: after add narrative.actors[${name}] = ${narrative.actors[name]} `);
-      console.log(`addActor: after add sc.ch.l = ${scene.children.length}`);
+      mediator.log(`addActor: added o.name = ${o.name}`);
+      mediator.log(`addActor: after add narrative.actors[${name}] = ${narrative.actors[name]} `);
+      mediator.log(`addActor: after add sc.ch.l = ${scene.children.length}`);
     }
   }
 
   removeActor(name){
     if(narrative.actors[name]){
-      console.log(`rmActor: before delete sc.ch.l = ${scene.children.length}`);
-      console.log(`rmActor: removing narrative.actors[${name}] = ${narrative.actors[name]}`);
+      mediator.log(`rmActor: before delete sc.ch.l = ${scene.children.length}`);
+      mediator.log(`rmActor: removing narrative.actors[${name}] = ${narrative.actors[name]}`);
       scene.remove(narrative.actors[name]);
       delete narrative.actors[name];
       //console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! removed actor ${name}`);
-      console.log(`rmActor: after delete narrative.actors[${name}] = ${narrative.actors[name]} `);
-      console.log(`rmActor: after delete sc.ch.l = ${scene.children.length}`);
+      mediator.log(`rmActor: after delete narrative.actors[${name}] = ${narrative.actors[name]} `);
+      mediator.log(`rmActor: after delete sc.ch.l = ${scene.children.length}`);
     }
   }
 
@@ -1374,12 +1332,12 @@ class Narrative {
   reportActorsInScene(){
     var actors:string[] = [];
 
-    console.log(`reportActors: sc.ch.l = ${scene.children.length}`);
+    mediator.log(`reportActors: sc.ch.l = ${scene.children.length}`);
     for(let o of scene.children){
-      console.log(`reportActors: scene contains child ${o.name}`);
-      console.log(`reportActors: narrative.actors[${o.name}] is ${narrative.actors[o.name]}`);
+      mediator.log(`reportActors: scene contains child ${o.name}`);
+      mediator.log(`reportActors: narrative.actors[${o.name}] is ${narrative.actors[o.name]}`);
       if(o !== narrative.actors[o.name]){
-        console.log(`reportActors: there is name ambiguity!!: scene child ${o.name} is not actor ${o.name}`);
+        mediator.log(`reportActors: there is name ambiguity!!: scene child ${o.name} is not actor ${o.name}`);
       }
     };
     for(let a of scene.children){
@@ -1394,28 +1352,28 @@ class Narrative {
   addvrActor(name, o, addToScene=true){
     narrative.removevrActor(name);
     if(o){
-      console.log(`addvrActor: before add vr_sc.ch.l = ${vr_scene.children.length}`);
+      mediator.log(`addvrActor: before add vr_sc.ch.l = ${vr_scene.children.length}`);
       o['name'] = name;
       if(addToScene){
         console.log(`!!!!!!!!!!!!!!********** added vractor ${name}`);
         vr_scene.add(o);
       }
       narrative.vractors[name] = o;
-      console.log(`addvrActor: added o.name = ${o.name}`);
-      console.log(`addvrActor: after add narrative.vractors[${name}] = ${narrative.vractors[name]} `);
-      console.log(`addvrActor: after add vr_sc.ch.l = ${vr_scene.children.length}`);
+      mediator.log(`addvrActor: added o.name = ${o.name}`);
+      mediator.log(`addvrActor: after add narrative.vractors[${name}] = ${narrative.vractors[name]} `);
+      mediator.log(`addvrActor: after add vr_sc.ch.l = ${vr_scene.children.length}`);
     }
   }
 
   removevrActor(name){
     if(narrative.vractors[name]){
-      console.log(`rmvrActor: before delete vr_sc.ch.l = ${vr_scene.children.length}`);
-      console.log(`rmvrActor: removing narrative.vractors[${name}] = ${narrative.vractors[name]}`);
+      mediator.log(`rmvrActor: before delete vr_sc.ch.l = ${vr_scene.children.length}`);
+      mediator.log(`rmvrActor: removing narrative.vractors[${name}] = ${narrative.vractors[name]}`);
       vr_scene.remove(narrative.vractors[name]);
       delete narrative.vractors[name];
       //console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! removed vractor ${name}`);
-      console.log(`rmvrActor: after delete narrative.vractors[${name}] = ${narrative.vractors[name]} `);
-      console.log(`rmvrActor: after delete vr_sc.ch.l = ${vr_scene.children.length}`);
+      mediator.log(`rmvrActor: after delete narrative.vractors[${name}] = ${narrative.vractors[name]} `);
+      mediator.log(`rmvrActor: after delete vr_sc.ch.l = ${vr_scene.children.length}`);
     }
   }
 
@@ -1423,12 +1381,12 @@ class Narrative {
   reportvrActorsInvrScene(){
     var actors:string[] = [];
 
-    console.log(`reportvrActors: vr_sc.ch.l = ${vr_scene.children.length}`);
+    mediator.log(`reportvrActors: vr_sc.ch.l = ${vr_scene.children.length}`);
     for(let o of vr_scene.children){
-      console.log(`reportvrActors: vr_scene contains child ${o.name}`);
-      console.log(`reportvrActors: narrative.vractors[${o.name}] is ${narrative.vractors[o.name]}`);
+      mediator.log(`reportvrActors: vr_scene contains child ${o.name}`);
+      mediator.log(`reportvrActors: narrative.vractors[${o.name}] is ${narrative.vractors[o.name]}`);
       if(o !== narrative.vractors[o.name]){
-        console.log(`reportvrActors: there is name ambiguity!!: vr_scene child ${o.name} is not vractor ${o.name}`);
+        mediator.log(`reportvrActors: there is name ambiguity!!: vr_scene child ${o.name} is not vractor ${o.name}`);
       }
     };
     for(let a of vr_scene.children){
@@ -1467,7 +1425,7 @@ class Narrative {
         arg,     // f(arg) where arg is one of seven types above
         execute = () => {
           try{
-            console.log(`nar.exec invoking action ${action['f']}`);
+            mediator.log(`nar.exec invoking action ${action['f']}`);
             f(arg);
             if(config['record_actions']){
               mediator.record(action);
@@ -1479,7 +1437,7 @@ class Narrative {
 
     
     // diagnostic
-    //console.log(`*** narrative.exec action:`);
+    //mediator.log(`*** narrative.exec action:`);
     //console.dir(action);
 
     // empty action - bail
@@ -1491,13 +1449,13 @@ class Narrative {
     // action has target 'id' or 't' giving the execution context 
     // actors(action.id) or narrative.target[action.t]
     if(action['id']){             // @@@ id
-      console.log(`action['id'] = ${action['id']}`);
+      mediator.log(`action['id'] = ${action['id']}`);
       target = narrative.actors[action['id']];      // target object for function f
       if(!target){
         throw new Error(`narrative.actors[${action['id']}] is not defined!`);
       }
     }else{                     // @@@ target-name, not id
-      console.log(`action['t'] = ${action['t']}`);
+      mediator.log(`action['t'] = ${action['t']}`);
       target = narrative.targets[action['t']];
       if(!target){  
         throw new Error(`narrative.targets[${action['t']}] is not defined!`);
