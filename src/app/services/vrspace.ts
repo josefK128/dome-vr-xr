@@ -1,4 +1,4 @@
-// vrspace.ts - creates enclosing spaces (cube, dome) for webVR
+// vrspace.ts - creates enclosing spaces (cube, dome) for webXR
 import {mediator} from './mediator';
 
 
