@@ -581,7 +581,6 @@ class Narrative {
 
   // ingest injection vars, set testTarget if test
   bootstrap(injection:object){
-    console.log('\n\nnarrative.bootstrap');
     _webvr = config.webvr;
     _vive = config.vive;
     _sg3D = config.sg3D;

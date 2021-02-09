@@ -28,12 +28,12 @@
     <script src="../node_modules/three/build/three.js"></script>
     <script src=
     "../node_modules/three/examples/js/controls/OrbitControls.js"></script>
-    <!--<script src=
-      "../node_modules/three/examples/js/vr/WebVR.js"></script>-->
+    <script src=
+    "../node_modules/three/examples/js/vr/WebVR.js"></script>
     <script src=
     "../node_modules/three/examples/js/libs/stats.min.js"></script>
     <script src=
-      "../node_modules/three/examples/js/libs/dat.gui.min.js"></script>
+    "../node_modules/three/examples/js/libs/dat.gui.min.js"></script>
 
     <!-- GSAP-TweenMax, Leap -->
     <script src="../node_modules/gsap/umd/TweenMax.js"></script>
@@ -45,36 +45,26 @@
     <canvas id='i3d' style='position:absolute; left:0px; top:0px;'>
     </canvas>
 
-    
     <script type='module'>
-
-    // injection: THREE, VRButton, Stats, GUI(dat.gui), OrbitControls
-//    import * as THREE from './jsm/three/build/three.module.js';
-//    import * as OrbitControls from './jsm/three/controls/OrbitControls.js';
-    import {VRButton} from './jsm/three/webxr/VRButton.js';
-//    import Stats from './jsm/three/libs/stats.module.js';
-////    import {dat} from './jsm/three/libs/dat.gui.min.js';
-//
-//    // make globally accessible
-//    // NOTE: stats and datgui is injected into narrative.bootstrp(injection) 
-//    // via object 'injection'
-//    window.THREE = THREE;
-//    THREE.OrbitControls = OrbitControls;
-    window.VRButton = VRButton;
+      import {VRButton} from './jsm/three/webxr/VRButton.js';
+      // make VRButton globally accessible
+      window.VRButton = VRButton;
+      //console.log(`VRButton = ${VRButton}`); //GOOD
+    </script>
 
 
-    // injection: config, state, narrative, scene
+    <script>
+    // injection: config, state, narrative, stats, dat.gui, VRButton
+
     // SCENE
     const _scene = './app/scenes/scene';
     var config;
 
     window.onload = System.import(_scene)
     .then((Scene) => {
-      //console.log(`VRButton = ${VRButton}`);  // Good
       console.log(`System.import ${_scene}`);
       console.dir(Scene);
       config = Scene.config;     // export - made global
-      console.log(`\nindex.html config = ${config}`);
 
       // TEMP diagnostics
       //console.log(`config = ${config}:`);
@@ -87,12 +77,10 @@
       async.parallel({
         narrative: function(callback){
           // import module whose property is the module export 'narrative'
-          console.log(`System.import(config._narrative=${config._narrative})`);
           System.import(config._narrative)
             .then((Narrative) => {
-              console.log('System.import(config._narrative returns Narrative = ${Narrative}');
               callback(null, Narrative.narrative);   //export
-              console.log(`System.import(_narrative) returns singleton instance Narrative.narrative = ${Narrative.narrative}`);
+              //console.log(`System.import(_narrative) returns singleton instance Narrative.narrative = ${Narrative.narrative}`);
           })
           .catch((e) => {
             console.error(`index: import of narrative module caused error: ${e}`);
@@ -116,7 +104,7 @@
         }
         injection['config'] = config; // global
         injection['state'] = Scene.state;
-        //injection['datgui'] = new dat.GUI(); // dat.GUI global
+        injection['datgui'] = new dat.GUI(); // dat.GUI global
         injection['stats'] = new Stats(); // Stats global
 
         // initialize narrative
